@@ -1,0 +1,110 @@
+/*INCLUDES*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/select.h>
+
+/*STRUC CLIENTS*/
+Type : t_client
+structure that contains the id of the client and the message
+he will send.
+
+/*GLOBALS*/
+Number of globals : 8
+1) clients: a tab of 1024 potentiels clients in the stack
+2) fd_set : read_set, write_set, current
+3) char : send_buffer[120000], recv_buffer[120000]
+4) int : maxfd, gid
+
+/*ERR (ERR MSG)*/
+Used to display error messages on fd 2 (standart error)
+If there is a message then display it using write
+else display "Fatal Error",
+Dont forget the \n and exit with status 1
+Ends by exiting the program.
+
+/*SEND_TO_ALL (INT EXCEPT)*/
+Sends a buffer to all fd in the set except the one
+given argument.
+- Loops throught every fd (max len == maxfd)
+	- check that the current fd is in the set of fds && that the fd isnt the one 
+	in argument
+		- check that sending the send_buffer was succesfull
+			- if not ERR function
+
+/*MAIN*/
+NOTES: flags for socket : domain: IPV4 so AF_INET
+						 type : two type connection so SOCK_STREAM
+						 protocole : 0 (not needed) 
+
+
+Main part of the program. Contains setup of the server, buffers, fd_set...
+
+- Checks that is the number of arguments is indeed 2 -> if not err that exits
+- Setups the server utils : 
+	struct	sockaddr_in	serveraddr;
+	socklen_t 			len;
+	int					serverfd = socket(AF_INET, SOCK_STREAM, 0);
+		- check that serverfd is no -1
+		- sets maxfd to serverfd
+		- clears fd_set current
+		- adds serverfd to current fd_set
+		- clears clients with bzero
+		- clears serveradrr with bzero 
+		- setup serveraddr.sin_family
+		- setup serveraddr.sin_addr.s_addr
+		- setup serveraddr.sin_port
+
+- Try to bind the serverfd, &serveraddr and sizeof AND LISTEN TO SERVERFD, 100, if failed ERR!
+- Main loop:
+	- equals read_set, write_set and current
+	- try to select(nb fd max + , &read_set, &write_set, 0 , 0) if fails, continue
+	- for all fd until maxfd:
+		- if current fd is set inside FD_SET with &read_set
+			- if current fd == serverfd (MEANS TRYING TO CONNECT)
+				- accept the connection inside new clientfd
+				- check that accept worked if not continue;
+				- if clientfd > maxfd
+					- update maxfd
+				- update clients[clientfd].id with gid++;
+				- update fd_SET by adding clientfd
+				- sprintf to fill send_buffer with arrived message and clientfd.id
+				- send to all the message
+				- break
+		- else
+			- receive message from fd that we are currently looping
+			- if received <= 0 (means client left)
+				- sprintf to fill buffer with client left with id of client
+				- send buffer to all
+				- FD_CLR the set of the fd that left
+				- close the fd
+				- break
+			- else (means the client sent a msg)
+				- for (int i = 0, j = strlen(clients[fd].message); i < ret; i++, j++)
+					- attribute recv_buffer to good client.message
+					- if '\n' was found inside message[j]
+						- replace it by '\0'
+						- sprintf to fill the send_buffer with the message
+						- send buffer to all
+						- clear the clients.message using bzero
+						- j = -1 to avoid error while loop
+			break;
+	return
+
+
+ERRORS
+if nothing is happening check bind and LISTEN
+
+if message not sending check last part
+
+if leaks del print kekw
+
+if message always the same check the sprintf -> must always write inside send_buffer!!
+
+always fatal error {
+	- maybe port not been restarted
+	- check first conditions
+}
